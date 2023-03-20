@@ -1,5 +1,5 @@
 [package]
-name = "cyw43-example-rpi-pico-w"
+name = "pico-w-blinky"
 version = "0.1.0"
 edition = "2021"
 
@@ -24,14 +24,6 @@ embassy-rp = { version = "0.1.0", features = [
     "unstable-pac",
     "time-driver",
 ] }
-embassy-net = { version = "0.1.0", features = [
-    "defmt",
-    "tcp",
-    "dhcpv4",
-    "medium-ethernet",
-    "unstable-traits",
-    "nightly",
-] }
 atomic-polyfill = "0.1.5"
 static_cell = "1.0"
 
@@ -49,8 +41,6 @@ futures = { version = "0.3.17", default-features = false, features = [
 
 embedded-hal-1 = { package = "embedded-hal", version = "1.0.0-alpha.9" }
 embedded-hal-async = { version = "0.2.0-alpha.0" }
-embedded-io = { version = "0.4.0", features = ["async", "defmt"] }
-heapless = "0.7.15"
 
 
 [patch.crates-io]
@@ -59,7 +49,6 @@ embassy-time = { git = "https://github.com/embassy-rs/embassy", rev = "e3f8020c3
 embassy-futures = { git = "https://github.com/embassy-rs/embassy", rev = "e3f8020c3bdf726dfa451b5b190f27191507a18f" }
 embassy-sync = { git = "https://github.com/embassy-rs/embassy", rev = "e3f8020c3bdf726dfa451b5b190f27191507a18f" }
 embassy-rp = { git = "https://github.com/embassy-rs/embassy", rev = "e3f8020c3bdf726dfa451b5b190f27191507a18f" }
-embassy-net = { git = "https://github.com/embassy-rs/embassy", rev = "e3f8020c3bdf726dfa451b5b190f27191507a18f" }
 embassy-net-driver = { git = "https://github.com/embassy-rs/embassy", rev = "e3f8020c3bdf726dfa451b5b190f27191507a18f" }
 embassy-net-driver-channel = { git = "https://github.com/embassy-rs/embassy", rev = "e3f8020c3bdf726dfa451b5b190f27191507a18f" }
 

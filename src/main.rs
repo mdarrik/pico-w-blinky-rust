@@ -5,17 +5,14 @@
 #![allow(incomplete_features)]
 
 use core::convert::Infallible;
-use core::str::from_utf8;
 
 use defmt::*;
 use embassy_executor::Spawner;
-use embassy_net::tcp::TcpSocket;
-use embassy_net::{Config, Stack, StackResources};
 use embassy_rp::gpio::{Flex, Level, Output};
 use embassy_rp::peripherals::{PIN_23, PIN_24, PIN_25, PIN_29};
+use embassy_time::{Duration, Timer};
 use embedded_hal_1::spi::ErrorType;
 use embedded_hal_async::spi::{ExclusiveDevice, SpiBusFlush, SpiBusRead, SpiBusWrite};
-use embedded_io::asynch::Write;
 use static_cell::StaticCell;
 use {defmt_rtt as _, panic_probe as _};
 
@@ -26,17 +23,17 @@ macro_rules! singleton {
         STATIC_CELL.init_with(move || $val)
     }};
 }
-
+//  Runs the background task for managing the cyw43 chip. This has to be done in a separate task because it never finishes, so it would block the main loop. It needs to constantly run in the background in order to support the wifi chip.
+// see https://github.com/embassy-rs/cyw43/issues/32 for more info
 #[embassy_executor::task]
 async fn wifi_task(
-    runner: cyw43::Runner<'static, Output<'static, PIN_23>, ExclusiveDevice<MySpi, Output<'static, PIN_25>>>,
+    runner: cyw43::Runner<
+        'static,
+        Output<'static, PIN_23>,
+        ExclusiveDevice<MySpi, Output<'static, PIN_25>>,
+    >,
 ) -> ! {
     runner.run().await
-}
-
-#[embassy_executor::task]
-async fn net_task(stack: &'static Stack<cyw43::NetDriver<'static>>) -> ! {
-    stack.run().await
 }
 
 #[embassy_executor::main]
@@ -67,7 +64,7 @@ async fn main(spawner: Spawner) {
     let spi = ExclusiveDevice::new(bus, cs);
 
     let state = singleton!(cyw43::State::new());
-    let (net_device, mut control, runner) = cyw43::new(state, pwr, spi, fw).await;
+    let (_, mut control, runner) = cyw43::new(state, pwr, spi, fw).await;
 
     spawner.spawn(wifi_task(runner)).unwrap();
 
@@ -76,73 +73,15 @@ async fn main(spawner: Spawner) {
         .set_power_management(cyw43::PowerManagementMode::PowerSave)
         .await;
 
-    //control.join_open(env!("WIFI_NETWORK")).await;
-    control.join_wpa2(env!("WIFI_NETWORK"), env!("WIFI_PASSWORD")).await;
-
-    let config = Config::Dhcp(Default::default());
-    //let config = embassy_net::Config::Static(embassy_net::Config {
-    //    address: Ipv4Cidr::new(Ipv4Address::new(192, 168, 69, 2), 24),
-    //    dns_servers: Vec::new(),
-    //    gateway: Some(Ipv4Address::new(192, 168, 69, 1)),
-    //});
-
-    // Generate random seed
-    let seed = 0x0123_4567_89ab_cdef; // chosen by fair dice roll. guarenteed to be random.
-
-    // Init network stack
-    let stack = &*singleton!(Stack::new(
-        net_device,
-        config,
-        singleton!(StackResources::<2>::new()),
-        seed
-    ));
-
-    unwrap!(spawner.spawn(net_task(stack)));
-
-    // And now we can use it!
-
-    let mut rx_buffer = [0; 4096];
-    let mut tx_buffer = [0; 4096];
-    let mut buf = [0; 4096];
-
     loop {
-        let mut socket = TcpSocket::new(stack, &mut rx_buffer, &mut tx_buffer);
-        socket.set_timeout(Some(embassy_net::SmolDuration::from_secs(10)));
-
-        info!("Listening on TCP:1234...");
-        if let Err(e) = socket.accept(1234).await {
-            warn!("accept error: {:?}", e);
-            continue;
-        }
-
-        info!("Received connection from {:?}", socket.remote_endpoint());
-
-        loop {
-            let n = match socket.read(&mut buf).await {
-                Ok(0) => {
-                    warn!("read EOF");
-                    break;
-                }
-                Ok(n) => n,
-                Err(e) => {
-                    warn!("read error: {:?}", e);
-                    break;
-                }
-            };
-
-            info!("rxd {}", from_utf8(&buf[..n]).unwrap());
-
-            match socket.write_all(&buf[..n]).await {
-                Ok(()) => {}
-                Err(e) => {
-                    warn!("write error: {:?}", e);
-                    break;
-                }
-            };
-        }
+        Timer::after(Duration::from_secs(1)).await;
+        control.gpio_set(0, true).await;
+        Timer::after(Duration::from_secs(1)).await;
+        control.gpio_set(0, false).await;
     }
 }
 
+/// Custom SPI device for controlling the wifi chip.
 struct MySpi {
     /// SPI clock
     clk: Output<'static, PIN_29>,
