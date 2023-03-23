@@ -5,7 +5,7 @@ edition = "2021"
 
 
 [dependencies]
-cyw43 = { git = "https://github.com/embassy-rs/cyw43", rev = "e33b99e9ec9902d6f93582530fd9cfe38953ce69", features = [
+cyw43 = { git = "https://github.com/embassy-rs/cyw43", rev = "8b24fe3df02862991b2574f9d5c9ada7bd27706b", features = [
     "defmt",
     "firmware-logs",
 ] }
@@ -23,6 +23,7 @@ embassy-rp = { version = "0.1.0", features = [
     "nightly",
     "unstable-pac",
     "time-driver",
+    "pio",
 ] }
 atomic-polyfill = "0.1.5"
 static_cell = "1.0"
@@ -38,9 +39,8 @@ futures = { version = "0.3.17", default-features = false, features = [
     "cfg-target-has-atomic",
     "unstable",
 ] }
-
-embedded-hal-1 = { package = "embedded-hal", version = "1.0.0-alpha.9" }
-embedded-hal-async = { version = "0.2.0-alpha.0" }
+pio-proc = "0.2"
+pio = "0.2.1"
 
 
 [patch.crates-io]
