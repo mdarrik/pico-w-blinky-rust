@@ -25,6 +25,8 @@ macro_rules! singleton {
     }};
 }
 
+//  Runs the background task for managing the cyw43 chip. This has to be done in a separate task because it never finishes, so it would block the main loop. It needs to be constantly run in the background in order to support the wifi chip.
+// see https://github.com/embassy-rs/cyw43/issues/32 for more info
 #[embassy_executor::task]
 async fn wifi_task(
     runner: cyw43::Runner<
@@ -40,6 +42,12 @@ async fn wifi_task(
 async fn main(spawner: Spawner) {
     let p = embassy_rp::init(Default::default());
 
+    let cs = Output::new(p.PIN_25, Level::High);
+    let (_, sm, _, _, _) = p.PIO0.split();
+
+    let dma = p.DMA_CH0;
+    let spi = PioSpi::new(sm, cs, p.PIN_24, p.PIN_29, dma);
+
     // Include the WiFi firmware and Country Locale Matrix (CLM) blobs.
     let fw = include_bytes!("../firmware/43439A0.bin");
     let clm = include_bytes!("../firmware/43439A0_clm.bin");
@@ -48,21 +56,18 @@ async fn main(spawner: Spawner) {
     // at hardcoded addresses, instead of baking them into the program with `include_bytes!`:
     //     probe-rs-cli download 43439A0.bin --format bin --chip RP2040 --base-address 0x10100000
     //     probe-rs-cli download 43439A0_clm.bin --format bin --chip RP2040 --base-address 0x10140000
-    //let fw = unsafe { core::slice::from_raw_parts(0x10100000 as *const u8, 224190) };
-    //let clm = unsafe { core::slice::from_raw_parts(0x10140000 as *const u8, 4752) };
+    // let fw = unsafe { core::slice::from_raw_parts(0x10100000 as *const u8, 224190) };
+    // let clm = unsafe { core::slice::from_raw_parts(0x10140000 as *const u8, 4752) };
 
     let pwr = Output::new(p.PIN_23, Level::Low);
-    let cs = Output::new(p.PIN_25, Level::High);
-
-    let (_, sm, _, _, _) = p.PIO0.split();
-    let dma = p.DMA_CH0;
-    let spi = PioSpi::new(sm, cs, p.PIN_24, p.PIN_29, dma);
 
     let state = singleton!(cyw43::State::new());
     let (_, mut control, runner) = cyw43::new(state, pwr, spi, fw).await;
 
     unwrap!(spawner.spawn(wifi_task(runner)));
     control.init(clm).await;
+    // Since we're just using the gpio, we can make sure that we're in low power mode for the WiFi chip. Note we could probably use the experimental aggressive mode, but power save is likely more reliable
+
     control
         .set_power_management(cyw43::PowerManagementMode::PowerSave)
         .await;
